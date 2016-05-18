@@ -4,6 +4,18 @@
  *
  * @extends WC_Shipping_Method
  */
+
+/*
+
+- added get_cadusd_exchange_rate() function
+- added 'conversion_rate' UPS shipping form field
+- added 'woocommerce_wf_get_cadusd_exchange_rate' button below 'conversion_rate' field
+- added javascript in admin_options() HTML to initialize the conversion button and fetch current exchange rate (hardcoded via PHP)
+- added api_mode form field with supporting functionality code
+- set $api_mode to 'Test'
+- set default units to 'metric'
+
+*/
 class WF_Shipping_UPS extends WC_Shipping_Method {
 
 	private $endpoint = 'https://wwwcie.ups.com/ups.app/xml/Rate';
@@ -75,6 +87,8 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 		"86" => "UPS Today Express Saver",
 	);
 
+    private $api_mode = 'Test';
+
 	/**
 	 * __construct function.
 	 *
@@ -89,8 +103,9 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 		// WF: Load UPS Settings.
 		$ups_settings 		= get_option( 'woocommerce_'.WF_UPS_ID.'_settings', null ); 
 //		$api_mode      		= 'Live';
-		$api_mode      		= 'Test';
-		if( "Live" == $api_mode ) {
+		$this->api_mode      		= isset( $ups_settings['api_mode'] ) ? $ups_settings['api_mode'] : 'Test';
+
+		if( "Live" == $this->api_mode ) {
 			$this->endpoint = 'https://www.ups.com/ups.app/xml/Rate';
 		}
 		else {
@@ -132,7 +147,7 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 
 		// Define user set variables
 		$this->enabled				= isset( $this->settings['enabled'] ) ? $this->settings['enabled'] : $this->enabled;
-		$this->title				= isset( $this->settings['title'] ) ? $this->settings['title'] : $this->method_title;
+        $this->title                = isset( $this->settings['title'] ) ? $this->settings['title'] : $this->method_title;
 		$this->availability    		= isset( $this->settings['availability'] ) ? $this->settings['availability'] : 'all';
 		$this->countries       		= isset( $this->settings['countries'] ) ? $this->settings['countries'] : array();
 		$this->ups_user_name        	= isset( $this->settings['ups_user_name'] ) ? $this->settings['ups_user_name'] : '';
@@ -160,7 +175,7 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 		$this->insuredvalue 	= isset( $this->settings['insuredvalue'] ) && $this->settings['insuredvalue'] == 'yes' ? true : false;
 
 		// Units
-		$this->units			= isset( $this->settings['units'] ) ? $this->settings['units'] : 'imperial';
+		$this->units			= isset( $this->settings['units'] ) ? $this->settings['units'] : 'metric';
 
 		if ( $this->units == 'metric' ) {
 			$this->weight_unit = 'KGS';
@@ -300,6 +315,18 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 			padding: 15px 0
 		}
 		</style>
+        <script>
+            function woocommerce_wf_get_cadusd_exchange_rate()
+            {
+                jQuery("#woocommerce_wf_shipping_ups_conversion_rate").val('<?php echo $this->get_cadusd_exchange_rate(); ?>');
+                console.log('YAY!')
+            }
+
+            jQuery(document).ready(function(){
+                console.log('ALOHA!!');
+                jQuery("#woocommerce_wf_get_cadusd_exchange_rate").click(woocommerce_wf_get_cadusd_exchange_rate);
+            })
+        </script>
 		<?php 
 
 		// Show settings
@@ -517,6 +544,17 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
                 'description'        => __( 'Enable realtime rates on Cart/Checkout page.', 'ups-woocommerce-shipping' ),
                 'desc_tip'           => true
 			),
+            'api_mode'            => array(
+                'title'           => __( 'API Mode', 'ups-woocommerce-shipping' ),
+                'type'            => 'select',
+                'description'     => __( 'Test/Production mode switch', 'ups-woocommerce-shipping' ),
+                'default'         => 'Test',
+                'options'         => array(
+                    'Test'        => __( 'Test Mode', 'ups-woocommerce-shipping' ),
+                    'Live'        => __( 'Live Mode', 'ups-woocommerce-shipping' ),
+                ),
+                'desc_tip'        => true
+            ),
 			'title'                  => array(
 				'title'              => __( 'UPS Method Title', 'ups-woocommerce-shipping' ),
 				'type'               => 'text',
@@ -646,16 +684,23 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 			'services'            => array(
 				'type'            => 'services'
 			),
-			'offer_rates'         => array(
-				'title'           => __( 'Offer Rates', 'ups-woocommerce-shipping' ),
-				'type'            => 'select',
-				'description'     => '',
-				'default'         => 'all',
-				'options'         => array(
-				    'all'         => __( 'Offer the customer all returned rates', 'ups-woocommerce-shipping' ),
-				    'cheapest'    => __( 'Offer the customer the cheapest rate only', 'ups-woocommerce-shipping' ),
-				),
-		    ),
+            'offer_rates'         => array(
+                'title'           => __( 'Offer Rates', 'ups-woocommerce-shipping' ),
+                'type'            => 'select',
+                'description'     => '',
+                'default'         => 'all',
+                'options'         => array(
+                    'all'         => __( 'Offer the customer all returned rates', 'ups-woocommerce-shipping' ),
+                    'cheapest'    => __( 'Offer the customer the cheapest rate only', 'ups-woocommerce-shipping' ),
+                ),
+            ),
+            'conversion_rate'     => array(
+                'title'           => __( 'Conversion Rate', 'ups-woocommerce-shipping' ),
+                'type'            => 'text',
+                'description'     => '<a id="woocommerce_wf_get_cadusd_exchange_rate" class="button">Get CAD/USD exchange rate</a>',
+                'default'         => '1.0',
+                'desc_tip'        => false
+            ),
 		    'fallback'            => array(
 				'title'           => __( 'Fallback', 'ups-woocommerce-shipping' ),
 				'type'            => 'text',
@@ -679,6 +724,10 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
     	$rates            = array();
     	$ups_responses	  = array();
     	libxml_use_internal_errors( true );
+
+        $this->debug( sprintf( __( '[UPS] API Mode: "<strong>%s</strong>", URL used: "%s"', 'ups-woocommerce-shipping' ),
+        $this->api_mode,
+        $this->endpoint ) );
 
 		// Only return rates if the package has a destination including country, postcode
         if ( '' == $package['destination']['country'] ) {
@@ -843,6 +892,8 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 			) );
 			$this->debug( __('UPS: Using Fallback setting.', 'ups-woocommerce-shipping') );
 		}
+
+        $this->get_cadusd_exchange_rate();
     }
 
     /**
@@ -1164,5 +1215,65 @@ class WF_Shipping_UPS extends WC_Shipping_Method {
 	public function wf_set_service_code($service_code){
 		$this->service_code=$service_code;
 	}
+
+    public function get_cadusd_exchange_rate(){
+        $exchange_rate = 1.0;
+
+        $response = wp_remote_get( 'http://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20yahoo.finance.xchange%20where%20pair%20in%20%28%22CADUSD%22%29&env=store://datatables.org/alltableswithkeys', $args );
+
+        if ( is_wp_error( $response ) ) {
+            $error_string = $response->get_error_message();
+            $this->debug( 'YAHOO XCG REQUEST FAILED: <pre>' . print_r( htmlspecialchars( $error_string ), true ) . '</pre>' );
+        }
+        else if ( ! empty( $response['body'] ) ) {
+            $yahoo_response = $response['body'];
+
+            $data = preg_replace('/<\?xml.*\?>/','', $yahoo_response );
+            $data = preg_replace('/<!--(.*)-->/Uis','', $data );
+
+            $xml = simplexml_load_string( $data );
+
+            if ( $this->debug ) {
+                if ( ! $xml ) {
+                    $this->debug( __( 'Failed loading Yahoo XML', 'ups-woocommerce-shipping' ), 'error' );
+                }
+            }
+
+            if( false !== $xml){
+                /*
+                SimpleXMLElement Object
+                (
+                    [results] => SimpleXMLElement Object
+                        (
+                            [rate] => SimpleXMLElement Object
+                                (
+                                    [@attributes] => Array
+                                        (
+                                            [id] => CADUSD
+                                        )
+
+                                    [Name] => CAD/USD
+                                    [Rate] => 0.7729
+                                    [Date] => 5/14/2016
+                                    [Time] => 12:29pm
+                                    [Ask] => 0.7730
+                                    [Bid] => 0.7728
+                                )
+
+                        )
+
+                )
+                */
+                $exchange_rate = $xml->results->rate->Rate;
+                $this->debug( 'YAHOO XCG RATE: <pre>' . $exchange_rate . '</pre>' );
+            }
+
+            $this->debug( 'YAHOO XCG RESPONSE RAW: <pre>' . print_r( htmlspecialchars( $data ), true ) . '</pre>' );
+            $this->debug( 'YAHOO XCG RESPONSE: <pre>' . print_r( ( $xml ), true ) . '</pre>' );
+            $this->debug( 'YAHOO XCG RESPONSE: <pre>' . var_export( ( $xml ), true ) . '</pre>' );
+        }
+
+        return $exchange_rate;
+    }
 
 }
